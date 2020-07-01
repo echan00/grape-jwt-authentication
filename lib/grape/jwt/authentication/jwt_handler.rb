@@ -78,10 +78,13 @@ module Grape
         # @param header [String] The authorization header value
         # @return [String] The parsed and well-formatted JWT
         def parse_token(header)
-          token = header.to_s.scan(/^Bearer (.*)/).flatten.first
+          temp_token = header.to_s.scan(/^Bearer (.*)/).flatten.first
+          partition = temp_token.rpartition("_")  
+          token = partition[0]
+          user_id = partition[2]
           raise MalformedHeaderError unless JWT_REGEX =~ token
 
-          token
+          return token, user_id
         end
 
         # Inject the token to the environment as a parsed version. This allows
@@ -117,7 +120,7 @@ module Grape
           Grape::Middleware::Formatter.new(->(_) {}).call(env)
 
           # Parse the JWT token from the request headers.
-          token = parse_token(env['HTTP_AUTHORIZATION'])
+          token, user_id = parse_token(env['HTTP_AUTHORIZATION'])
 
           # Inject the parsed token to the Rack environment.
           inject_token_into_env(env, token)
@@ -126,7 +129,7 @@ module Grape
           # for futher verification. The user given block MUST return
           # a positive result to allow the request to be further
           # processed, or a negative result to stop processing.
-          raise AuthenticationError unless authenticator.call(token)
+          raise AuthenticationError unless authenticator.call(token, user_id)
 
           # Looks like we are on a good path and the given token was
           # valid on all checks. So we continue the regular
